@@ -4,6 +4,7 @@ class HomeScreen extends StatelessWidget {
   final String username;
 
   const HomeScreen({super.key, required this.username});
+  
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +13,8 @@ class HomeScreen extends StatelessWidget {
         title: const Text('Accueil'),
       ),
       body: Center(
-        child: Text("Bienvenue, $username 👋"),
+       
+        child: Text("Bienvenue sur votre Application MyFood👋"),
       ),
     );
   }
