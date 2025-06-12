@@ -1,14 +1,21 @@
+const dotenv = require('dotenv');
+dotenv.config(); // On s'assure que JWT_SECRET est bien chargé
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
+console.log('DEBUG JWT_SECRET:', process.env.JWT_SECRET);
+
 const router = express.Router();
 
 router.post('/register-step1', async (req, res) => {
-  const { username, password } = req.body;
+  const { firstName, lastName, username, password, age } = req.body;
 
-  if (!username || !password)
+  console.log('Register-step1 - Received:', { firstName, lastName, username, password, age });
+
+  if (!firstName || !lastName || !username || !password || !age)
     return res.status(400).json({ message: 'Champs requis' });
 
   const exists = await User.findOne({ username });
@@ -18,9 +25,12 @@ router.post('/register-step1', async (req, res) => {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const newUser = new User({
+    firstName,
+    lastName,
     username,
     password: hashedPassword,
-    allergens: [], // vide pour le moment
+    age,
+    allergens: [],
   });
 
   await newUser.save();
@@ -33,6 +43,8 @@ router.post('/register-step1', async (req, res) => {
 
 router.post('/register-step2', async (req, res) => {
   const { userId, allergens } = req.body;
+
+  console.log('Register-step2 - Received:', { userId, allergens });
 
   if (!userId || !Array.isArray(allergens)) {
     return res.status(400).json({ message: 'userId ou allergènes manquants' });
@@ -57,32 +69,50 @@ router.post('/register-step2', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
+  console.log('Login - Received username:', username);
+  console.log('Login - Received password:', password);
+
   if (!username || !password)
     return res.status(400).json({ message: 'Champs requis' });
 
   const user = await User.findOne({ username });
-  if (!user)
+  if (!user) {
+    console.log('Login - User not found');
     return res.status(401).json({ message: 'Identifiants invalides' });
+  }
+
+  console.log('Login - User found in DB:', user);
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
+  console.log('Login - Password valid:', isPasswordValid);
+
   if (!isPasswordValid)
     return res.status(401).json({ message: 'Mot de passe incorrect' });
 
   // Générer un token
-  const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
-    expiresIn: '24h',
-  });
+  try {
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: '24h',
+    });
 
-  res.json({
-    message: 'Connexion réussie',
-    token,
-    user: {
-      id: user._id,
-      username: user.username,
-      allergens: user.allergens,
-    },
-  });
+    console.log('Login - Token generated');
+
+    res.json({
+      message: 'Connexion réussie',
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        age: user.age,
+        allergens: user.allergens,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur lors de la génération du token:', error.message);
+    res.status(500).json({ message: 'Erreur serveur lors de la connexion' });
+  }
 });
-
 
 module.exports = router;

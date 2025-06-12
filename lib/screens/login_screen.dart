@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
 
   String? _error;
+  bool _isLoading = false;
 
   Future<void> _login() async {
     final username = _usernameController.text.trim();
@@ -27,13 +28,29 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     final data = await _authService.login(username, password);
 
+    setState(() {
+      _isLoading = false;
+    });
+
     if (data != null) {
-      final String username = data['user']['username'];
+      final String firstName = data['user']['firstName'];
+
+      // Optionnel : tu peux afficher aussi dans le print pour vérifier
+      print('Utilisateur connecté : $firstName');
+
+      // Navigation vers HomeScreen → on passe le firstName
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => HomeScreen(username: username)),
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(username: firstName),
+        ),
       );
     } else {
       setState(() => _error = "Nom d'utilisateur ou mot de passe incorrect.");
@@ -62,13 +79,15 @@ class _LoginScreenState extends State<LoginScreen> {
               obscureText: true,
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-              child: const Text("Se connecter"),
-            ),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                    ),
+                    child: const Text("Se connecter"),
+                  ),
             TextButton(
               onPressed: () {
                 Navigator.push(

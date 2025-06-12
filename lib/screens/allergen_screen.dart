@@ -14,8 +14,9 @@ class AllergenScreen extends StatefulWidget {
 
 class _AllergenScreenState extends State<AllergenScreen> {
   final AuthService _authService = AuthService();
-  List<String> _allAllergens = [];
-  List<String> _selected = [];
+
+  List<String> _allergens = [];
+  List<String> _selectedAllergens = [];
   bool _loading = true;
   String? _error;
 
@@ -27,31 +28,59 @@ class _AllergenScreenState extends State<AllergenScreen> {
 
   Future<void> _loadAllergens() async {
     try {
-      final list = await _authService.getAllergens();
+      // Récupère uniquement les allergènes en français
+      final allergens = await _authService.getAllergens(lang: 'fr');
       setState(() {
-        _allAllergens = list;
+        _allergens = allergens;
         _loading = false;
       });
     } catch (e) {
       setState(() {
-        _error = "Erreur lors du chargement.";
+        _error = 'Erreur lors du chargement des allergènes.';
         _loading = false;
       });
     }
   }
 
-  Future<void> _submitAllergens() async {
-    final success = await _authService.registerStep2(widget.userId, _selected);
-    if (success) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(username: widget.userId), // tu peux ajuster si nécessaire
-        ),
-      );
-    } else {
+  void _toggleSelection(String allergen) {
+    setState(() {
+      if (_selectedAllergens.contains(allergen)) {
+        _selectedAllergens.remove(allergen);
+      } else {
+        _selectedAllergens.add(allergen);
+      }
+    });
+  }
+
+  Future<void> _validateSelection() async {
+    if (_selectedAllergens.isEmpty) {
       setState(() {
-        _error = "Erreur lors de l’enregistrement des allergènes.";
+        _error = 'Veuillez sélectionner au moins un allergène.';
+      });
+      return;
+    }
+
+    try {
+      final success = await _authService.registerStep2(widget.userId, _selectedAllergens);
+      if (success) {
+        // Aller vers HomeScreen après inscription complète
+        if (!mounted) return;
+
+        // On redirige vers HomeScreen → username sera récupéré au login
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const HomeScreen(username: 'Utilisateur'), // tu pourras plus tard passer le vrai username après login
+          ),
+        );
+      } else {
+        setState(() {
+          _error = 'Erreur lors de la validation des allergènes.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = 'Erreur inattendue : $e';
       });
     }
   }
@@ -62,47 +91,53 @@ class _AllergenScreenState extends State<AllergenScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.primary,
-        title: const Text("Choix des allergènes"),
+        title: const Text("Sélectionnez vos allergènes"),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const Text("Cochez vos allergènes :", style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 12),
                   Expanded(
-                    child: ListView(
-                      children: _allAllergens.map((allergen) {
-                        return CheckboxListTile(
-                          title: Text(allergen),
-                          value: _selected.contains(allergen),
-                          onChanged: (bool? value) {
-                            setState(() {
-                              if (value == true) {
-                                _selected.add(allergen);
-                              } else {
-                                _selected.remove(allergen);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
+                    child: _allergens.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Aucun allergène disponible.',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          )
+                        : ListView(
+                            children: _allergens.map((allergen) {
+                              return CheckboxListTile(
+                                title: Text(
+                                  // Supprime le préfixe 'fr:' pour afficher proprement
+                                  allergen.startsWith('fr:') ? allergen.substring(3) : allergen,
+                                  style: const TextStyle(fontSize: 16),
+                                ),
+                                value: _selectedAllergens.contains(allergen),
+                                onChanged: (_) => _toggleSelection(allergen),
+                                activeColor: AppColors.primary,
+                              );
+                            }).toList(),
+                          ),
                   ),
                   ElevatedButton(
-                    onPressed: _submitAllergens,
+                    onPressed: _validateSelection,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                     ),
-                    child: const Text("Valider"),
+                    child: const Text("Valider mes choix"),
                   ),
                   if (_error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(_error!, style: const TextStyle(color: Colors.red)),
-                  ]
+                    const SizedBox(height: 16),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ],
               ),
             ),
