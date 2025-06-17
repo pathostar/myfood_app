@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   lastName:  { type: String, required: true },
   username:  { type: String, required: true, unique: true },
   password:  { type: String, required: true },
-  age:       { type: Number, required: true },
+  birthday: { type: Date, required: true },
   allergens: { type: [String], default: [] },
 });
 

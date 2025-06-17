@@ -1,24 +1,27 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-dotenv.config();
 const cors = require('cors');
 
+dotenv.config();
 const app = express();
 
-
-// Import des routes
+// Routes
 const authRoutes = require('./routes/auth');
 const allergenRoutes = require('./routes/allergens');
+const productRoutes  = require('./routes/product');
+
+
+app.use('/api/product', productRoutes);   //  → /api/product/:barcode
 
 // Middlewares
 app.use(cors());
 app.use(express.json());
 
-// Routes
-app.use('/api', authRoutes);
-app.use('/api', allergenRoutes);
-
+// ➜ Préfixes corrects
+app.use('/api/auth', authRoutes);   // /api/auth/...
+app.use('/api', allergenRoutes);    // /api/allergens/...
+app.use('/api/product', productRoutes);   //  → /api/product/:barcode
 // Connexion MongoDB
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {

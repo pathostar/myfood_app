@@ -11,11 +11,11 @@ console.log('DEBUG JWT_SECRET:', process.env.JWT_SECRET);
 const router = express.Router();
 
 router.post('/register-step1', async (req, res) => {
-  const { firstName, lastName, username, password, age } = req.body;
+  const { firstName, lastName, username, password, birthday } = req.body;
 
-  console.log('Register-step1 - Received:', { firstName, lastName, username, password, age });
+  console.log('register-step1 - Received:', { firstName, lastName, username, password, birthday });
 
-  if (!firstName || !lastName || !username || !password || !age)
+  if (!firstName || !lastName || !username || !password || !birthday)
     return res.status(400).json({ message: 'Champs requis' });
 
   const exists = await User.findOne({ username });
@@ -29,7 +29,7 @@ router.post('/register-step1', async (req, res) => {
     lastName,
     username,
     password: hashedPassword,
-    age,
+    birthday,
     allergens: [],
   });
 
@@ -44,7 +44,7 @@ router.post('/register-step1', async (req, res) => {
 router.post('/register-step2', async (req, res) => {
   const { userId, allergens } = req.body;
 
-  console.log('Register-step2 - Received:', { userId, allergens });
+  console.log('register-step2 - Received:', { userId, allergens });
 
   if (!userId || !Array.isArray(allergens)) {
     return res.status(400).json({ message: 'userId ou allergènes manquants' });
@@ -105,7 +105,7 @@ router.post('/login', async (req, res) => {
         username: user.username,
         firstName: user.firstName,
         lastName: user.lastName,
-        age: user.age,
+        birthday: user.age,
         allergens: user.allergens,
       },
     });
@@ -114,5 +114,25 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur lors de la connexion' });
   }
 });
+
+// routes/auth.js
+router.put('/register-step2/:userId', async (req, res) => {
+  const { userId }   = req.params;
+  const { allergens } = req.body;
+
+  if (!Array.isArray(allergens)) {
+    return res.status(400).json({ message: 'Allergens manquants' });
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { allergens },
+    { new: true }
+  );
+  if (!user) return res.status(404).json({ message: 'Utilisateur non trouvé' });
+
+  res.status(200).json({ message: 'Allergènes enregistrés', user });
+});
+
 
 module.exports = router;
