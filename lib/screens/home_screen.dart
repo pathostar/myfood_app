@@ -1,24 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../constants/app_constants.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'scan_screen.dart';   // chemin: ../screens/scan_screen.dart si besoin
+import 'history_screen.dart';   // ⇦ nouveau
+import 'shopping_list_screen.dart';
+import 'profile_screen.dart';
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
-class HomeScreen extends StatelessWidget {
-  final String username; // ici c'est en fait le firstName qu'on reçoit
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-  const HomeScreen({super.key, required this.username});
+class _HomeScreenState extends State<HomeScreen> {
+  String _firstName = '';
 
-  void _logout(BuildContext context) async {
-    final authService = AuthService();
-    await authService.logout();
+  @override
+  void initState() {
+    super.initState();
+    _loadFirstName();
+  }
 
+  Future<void> _loadFirstName() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _firstName = prefs.getString('firstName') ?? 'Utilisateur';
+    });
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    await AuthService().logout();
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 
-  Widget _buildMenuButton(BuildContext context, IconData icon, String label, VoidCallback onTap) {
+  Widget _buildMenuButton(
+      BuildContext context, IconData icon, String label, VoidCallback onTap) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -46,12 +69,7 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.primary,
         title: const Text("MyFood"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _logout(context),
-          ),
-        ],
+        // 🔹 AUCUNE icône de déconnexion ici
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -59,23 +77,49 @@ class HomeScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Bienvenue $username",
+              "Bienvenue $_firstName",
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
-            // Les boutons restent visibles, on met juste un print() temporaire
-            _buildMenuButton(context, Icons.qr_code_scanner, "Scanner un produit", () {
-              print("Scanner un produit cliqué");
-            }),
-            _buildMenuButton(context, Icons.list_alt, "Liste de courses", () {
-              print("Liste de courses cliquée");
-            }),
-            _buildMenuButton(context, Icons.history, "Historique", () {
-              print("Historique cliqué");
-            }),
-            _buildMenuButton(context, Icons.person, "Profil / Préférences", () {
-              print("Profil / Préférences cliqué");
-            }),
+            _buildMenuButton(
+              context,
+              Icons.qr_code_scanner,
+              "Scanner un produit",
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ScanScreen()),
+              ),
+            ),
+
+            _buildMenuButton(
+              context,
+              Icons.history,
+              "Historique",
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              ),
+            ),
+
+           _buildMenuButton(
+              context,
+              Icons.list_alt,
+              'Liste de courses',
+              () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ShoppingListScreen()),
+                  ),
+            ),
+            _buildMenuButton(
+              context,
+              Icons.person,
+              'Profil / Préférences',
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              ),
+            ),
+
             const Spacer(),
             Center(
               child: ElevatedButton.icon(

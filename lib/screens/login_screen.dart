@@ -40,16 +40,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (data != null) {
-      final String firstName = data['user']['firstName'];
-
-      // Optionnel : tu peux afficher aussi dans le print pour vérifier
-      print('Utilisateur connecté : $firstName');
-
-      // Navigation vers HomeScreen → on passe le firstName
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => HomeScreen(username: firstName),
+          builder: (_) => const HomeScreen(), // ✅ plus besoin de passer le prénom ici
         ),
       );
     } else {

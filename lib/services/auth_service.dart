@@ -1,109 +1,123 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';     // ← pour debugPrint
 
 class AuthService {
-  final String baseBackendUrl = 'http://localhost:3000';
+  /// ⚠️ 10.0.2.2 si émulateur Android, IP du PC si appareil réel
+  final String baseUrl = 'http://10.0.2.2:3000';
 
-  // Etape 1 - Création compte
-  Future<String?> registerStep1(String firstName, String lastName, String username, String password, int age) async {
-    final response = await http.post(
-      Uri.parse('$baseBackendUrl/api/register-step1'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'firstName': firstName.trim(),
-        'lastName': lastName.trim(),
-        'username': username.trim(),
-        'password': password.trim(),
-        'age': age,
-      }),
-    );
-
-    print('registerStep1 status: ${response.statusCode}');
-    print('registerStep1 body: ${response.body}');
-
-    if (response.statusCode == 201) {
-      final data = jsonDecode(response.body);
-      return data['userId'];
-    } else {
-      return null;
-    }
-  }
-
-  // Récupération des allergènes
-  Future<List<String>> getAllergens({String lang = 'fr'}) async {
-    final response = await http.get(Uri.parse('$baseBackendUrl/api/allergens?lang=$lang'));
-
-    print('getAllergens status: ${response.statusCode}');
-    print('getAllergens body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data.map<String>((item) => item['name'] as String).toList();
-    } else {
-      throw Exception('Failed to load allergens');
-    }
-  }
-
-  // Etape 2 - Enregistrement des allergènes
-  Future<bool> registerStep2(String userId, List<String> allergens) async {
-    final response = await http.post(
-      Uri.parse('$baseBackendUrl/api/register-step2'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userId': userId,
-        'allergens': allergens,
-      }),
-    );
-
-    print('registerStep2 status: ${response.statusCode}');
-    print('registerStep2 body: ${response.body}');
-
-    return response.statusCode == 200;
-  }
-
-  // Connexion utilisateur
-  Future<Map<String, dynamic>?> login(String username, String password) async {
+  /* -------- INSCRIPTION STEP 1 -------- */
+  Future<String?> registerStep1(
+    String firstName,
+    String lastName,
+    String username,
+    String password,
+    String birthday,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseBackendUrl/api/login'),
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/register-step1'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'username': username.trim(),
-          'password': password.trim(),
+          'firstName': firstName,
+          'lastName' : lastName,
+          'username' : username,
+          'password' : password,
+          'birthday' : birthday,
         }),
       );
 
-      print('login status: ${response.statusCode}');
-      print('login body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        // Sauvegarde du token JWT
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', data['token']);
-
-        return data;
+      if (res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        return data['userId'] as String;
       } else {
+        debugPrint('Erreur register-step1 : ${res.body}');
         return null;
       }
     } catch (e) {
-      print('Exception lors du login: $e');
+      debugPrint('Exception register-step1 : $e');
       return null;
     }
   }
 
-  // Récupérer le token stocké
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+  /* -------- LISTE DES ALLERGÈNES -------- */
+  /// Renvoie [{id:'en:milk', label:'lait'}, …]
+  Future<List<Map<String, String>>> getAllergens({String lang = 'en'}) async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/api/allergens?lang=$lang'));
+
+      if (res.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(res.body);
+        return data
+            .map<Map<String, String>>((e) => {
+                  'id'   : e['id'].toString(),
+                  'label': e['name'].toString(),
+                })
+            .toList();
+      } else {
+        debugPrint('Erreur backend allergens : ${res.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Exception getAllergens() : $e');
+      return [];
+    }
   }
 
-  // Déconnexion
+  /* -------- INSCRIPTION STEP 2 -------- */
+  Future<bool> registerStep2(String userId, List<String> allergens) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/register-step2'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'userId': userId, 'allergens': allergens}),
+      );
+
+      // ➜ on sauvegarde TOUJOURS localement
+      await prefs.setStringList('userAllergens', allergens);
+
+      if (res.statusCode == 200) return true;
+      debugPrint('registerStep2 backend error : ${res.body}');
+      return false;            // on avertit l’UI mais on ne perd pas les données
+    } catch (e) {
+      debugPrint('registerStep2 exception : $e');
+      await prefs.setStringList('userAllergens', allergens); // always cache
+      return false;
+    }
+}
+  /* -------- CONNEXION -------- */
+  Future<Map<String, dynamic>?> login(String username, String password) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'username': username, 'password': password}),
+      );
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userId', data['user']['id']);
+        await prefs.setString('firstName', data['user']['firstName']);
+        await prefs.setString('username', data['user']['username']);
+        return data;
+      } else {
+        debugPrint('Connexion échouée : ${res.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Exception login : $e');
+      return null;
+    }
+  }
+
+  /* -------- DÉCONNEXION -------- */
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    print('Utilisateur déconnecté (token supprimé)');
+    await prefs.clear();
+    debugPrint('Session supprimée.');
   }
 }
